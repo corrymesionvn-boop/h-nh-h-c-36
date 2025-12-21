@@ -1,43 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GD Rau Ma PS4</title>
+    <title>GD Rau Ma - PS4 Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         canvas { display: block; }
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.9); color: white; text-align: center; padding: 50px;
+            background: rgba(0,0,0,0.95); color: white; z-index: 100;
+            padding: 80px; box-sizing: border-box; text-align: center;
         }
+        .btn {
+            padding: 25px 60px; font-size: 32px; cursor: pointer; border: 4px solid #fff;
+            border-radius: 60px; background: #2ecc71; color: white; font-weight: bold;
+        }
+        #status { font-size: 18px; color: #f1c40f; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <h1 id="title" style="font-size: 60px; color: #2ecc71;">GEOMETRY RAU MÁ</h1>
-        <p id="cache-status">Đang tải...</p>
-        <button style="padding: 20px 50px; font-size: 25px;" onclick="startGame()">NHẤN (X) ĐỂ CHƠI</button>
-        <p style="margin-top: 20px; color: #f1c40f;">Music: Creo, Dimrain47, Tommi Uimonen</p>
+        <h1 id="title" style="font-size: 70px; color: #2ecc71; margin: 0;">GEOMETRY RAU MÁ</h1>
+        <div id="status">Đang kiểm tra dữ liệu...</div>
+        <button class="btn" id="btn-main" onclick="startGame()">BẮT ĐẦU (NHẤN X)</button>
+        <div id="music-tag" style="margin-top:20px; color:#3498db;">Music by: Creo, Dimrain47, Tommi Uimonen</div>
     </div>
     <canvas id="g"></canvas>
 
     <script>
-        // 1. Đăng ký Service Worker (Để chơi Offline)
+        // ĐĂNG KÝ OFFLINE CACHE
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').then(() => {
-                document.getElementById('cache-status').innerText = "✅ ĐÃ LƯU OFFLINE";
+                document.getElementById('status').innerText = "✅ CHẾ ĐỘ OFFLINE SẴN SÀNG";
             });
         }
 
         const c = document.getElementById('g');
         const ctx = c.getContext('2d');
-        const songFiles = ["music1.mp3", "music2.mp3", "music3.mp3", "music4.mp3", "music5.mp3"];
+        // SỬA ĐƯỜNG DẪN: Thoát ra ngoài thư mục webps để vào music
+        const songFiles = ["../music/music1.mp3", "../music/music2.mp3", "../music/music3.mp3", "../music/music4.mp3", "../music/music5.mp3"];
         const bgm = new Audio();
-        let state = 'start', isPress = false, lastXState = false;
-        let score = 0, rauMa = 0, frame = 0;
-        const p = { x: 200, y: 0, w: 45, h: 45, dy: 0, gnd: false };
+        let state = 'start', score = 0, rauMa = 0, frame = 0;
+        let isPress = false, lastXState = false;
+        const p = { x: 250, y: 0, w: 45, h: 45, dy: 0, gnd: false, rot: 0 };
 
-        // 2. Hàm quét tay cầm PS4
         function updateGamepad() {
             const gps = navigator.getGamepads();
             if (!gps[0]) return;
@@ -56,12 +62,20 @@
         function startGame() {
             document.getElementById('overlay').style.display = 'none';
             if (state !== 'playing') {
-                score = 0; rauMa = 0; p.y = 300;
-                bgm.src = "music/" + songFiles[Math.floor(Math.random()*5)];
-                bgm.play();
+                score = 0; rauMa = 0; frame = 0; p.y = c.height/2;
+                bgm.src = songFiles[Math.floor(Math.random()*5)];
+                bgm.play().catch(()=>{});
             }
             state = 'playing';
             loop();
+        }
+
+        function die() {
+            state = 'dead';
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('title').innerText = "THẤT BẠI";
+            document.getElementById('btn-main').innerText = "THỬ LẠI (X)";
+            bgm.pause();
         }
 
         function loop() {
@@ -70,30 +84,33 @@
             frame++; score++;
             ctx.fillStyle = "#050505"; ctx.fillRect(0,0,c.width,c.height);
 
-            // Vật lý nhảy
-            p.dy += 1.3; 
-            if(isPress && p.gnd) p.dy = -16;
+            // Vật lý
+            p.dy += 1.3; if(isPress && p.gnd) p.dy = -16;
             p.y += p.dy;
-
             const floor = c.height - 150;
-            if(p.y > floor - p.h) { p.y = floor - p.h; p.dy = 0; p.gnd = true; }
-            else p.gnd = false;
+            if(p.y > floor - p.h) { p.y = floor - p.h; p.dy = 0; p.gnd = true; p.rot = 0; }
+            else { p.gnd = false; p.rot += 5; }
 
-            // Vẽ sàn & Nhân vật
+            // Vẽ sàn & Player
             ctx.fillStyle = "#2ecc71"; ctx.fillRect(0, floor, c.width, 10);
-            ctx.fillStyle = "#0f0"; ctx.fillRect(p.x, p.y, p.w, p.h);
-            
+            ctx.save();
+            ctx.translate(p.x + p.w/2, p.y + p.h/2);
+            ctx.rotate(p.rot * Math.PI / 180);
+            ctx.fillStyle = "#0f0"; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(-p.w/2, -p.h/2, p.w, p.h);
+            ctx.restore();
+
             // UI
-            ctx.fillStyle = "#fff"; ctx.font = "30px Arial";
-            ctx.fillText("Score: " + Math.floor(score/10), 50, 50);
+            ctx.fillStyle = "white"; ctx.font = "30px Arial";
+            ctx.fillText("RAU MÁ: " + rauMa, 80, 80);
+            ctx.fillText(Math.floor(score/10) + "m", c.width - 150, 80);
 
             requestAnimationFrame(loop);
         }
 
-        // Kiểm tra tay cầm liên tục ngay cả khi chưa vào game
-        setInterval(() => { if(state !== 'playing') updateGamepad(); }, 50);
         window.onresize = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
         window.onresize();
+        setInterval(() => { if(state !== 'playing') updateGamepad(); }, 50);
     </script>
 </body>
 </html>
