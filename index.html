@@ -1,258 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Geometry Dash Rau Má - Credits Edition</title>
+    <title>GD Rau Ma - PS4 Edition</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         canvas { display: block; }
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.85); color: white; z-index: 100;
+            background: rgba(0,0,0,0.95); color: white; z-index: 100;
+            padding: 80px; box-sizing: border-box; text-align: center;
         }
-        .btn-group { display: flex; gap: 20px; margin-top: 20px; }
         .btn {
-            padding: 15px 35px; font-size: 20px; cursor: pointer; border: none;
-            border-radius: 50px; background: #2ecc71; color: white;
-            font-weight: bold; transition: 0.3s; box-shadow: 0 5px 15px rgba(46, 204, 113, 0.3);
+            padding: 25px 60px; font-size: 32px; cursor: pointer; border: 4px solid #fff;
+            border-radius: 60px; background: #2ecc71; color: white; font-weight: bold;
         }
-        .btn.reset { background: #e67e22; box-shadow: 0 5px 15px rgba(230, 126, 34, 0.3); }
-        .btn:hover { transform: scale(1.1); filter: brightness(1.1); }
-        .credits { font-size: 14px; color: #f1c40f; margin-top: 20px; text-align: center; line-height: 1.6; }
-        #music-now { font-size: 13px; color: #3498db; margin-top: 10px; font-style: italic; }
+        #status { font-size: 18px; color: #f1c40f; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <h1 id="title" style="font-size: 50px; margin: 0; color: #2ecc71; text-shadow: 0 0 15px #2ecc71;">GEOMETRY RAU MÁ</h1>
-        
-        <div id="stats-area" style="text-align: center; margin: 15px 0;"></div>
-
-        <div class="btn-group">
-            <button class="btn" id="main-btn" onclick="startGame()">BẮT ĐẦU CHƠI</button>
-            <button class="btn reset" id="reset-btn" style="display:none" onclick="resetGameFull()">CHƠI LẠI TỪ ĐẦU</button>
-        </div>
-
-        <div id="music-now">🎵 Đang tải nhạc...</div>
-
-        <div class="credits">
-            Music by: <b>Creo, Dimrain47, Tommi Uimonen</b><br>
-            <span style="color: #666; font-size: 11px;">Phím P: Tạm dừng | Phím N: Đổi nhạc ngẫu nhiên</span>
-        </div>
+        <h1 id="title" style="font-size: 70px; color: #2ecc71; margin: 0;">GEOMETRY RAU MÁ</h1>
+        <div id="status">Đang kiểm tra dữ liệu...</div>
+        <button class="btn" id="btn-main" onclick="startGame()">BẮT ĐẦU (NHẤN X)</button>
+        <div id="music-tag" style="margin-top:20px; color:#3498db;">Music by: Creo, Dimrain47, Tommi Uimonen</div>
     </div>
-
     <canvas id="g"></canvas>
 
     <script>
+        // ĐĂNG KÝ OFFLINE CACHE
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').then(() => {
+                document.getElementById('status').innerText = "✅ CHẾ ĐỘ OFFLINE SẴN SÀNG";
+            });
+        }
+
         const c = document.getElementById('g');
         const ctx = c.getContext('2d');
-        const overlay = document.getElementById('overlay');
-        const musicUI = document.getElementById('music-now');
-        const titleUI = document.getElementById('title');
-        const statsUI = document.getElementById('stats-area');
-        const resetBtn = document.getElementById('reset-btn');
-        const mainBtn = document.getElementById('main-btn');
-
-        const resize = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
-        window.onresize = resize; resize();
-
-        // --- CÀI ĐẶT NHẠC (music1.mp3 -> music5.mp3) ---
-        const songFiles = ["music1.mp3", "music2.mp3", "music3.mp3", "music4.mp3", "music5.mp3"];
-        let playlist = [...songFiles];
-        let currentIdx = 0;
+        // SỬA ĐƯỜNG DẪN: Thoát ra ngoài thư mục webps để vào music
+        const songFiles = ["../music/music1.mp3", "../music/music2.mp3", "../music/music3.mp3", "../music/music4.mp3", "../music/music5.mp3"];
         const bgm = new Audio();
+        let state = 'start', score = 0, rauMa = 0, frame = 0;
+        let isPress = false, lastXState = false;
+        const p = { x: 250, y: 0, w: 45, h: 45, dy: 0, gnd: false, rot: 0 };
 
-        function shuffle(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
+        function updateGamepad() {
+            const gps = navigator.getGamepads();
+            if (!gps[0]) return;
+            const gp = gps[0];
+            const xPressed = gp.buttons[0].pressed; // Nút X
+
+            if (xPressed) {
+                if (state === 'playing') isPress = true;
+                else if (!lastXState) startGame();
+            } else {
+                isPress = false;
             }
+            lastXState = xPressed;
         }
-
-        function playMusic(idx) {
-            currentIdx = idx % playlist.length;
-            bgm.src = "music/" + playlist[currentIdx];
-            musicUI.innerText = "🎵 Đang phát: " + playlist[currentIdx];
-            bgm.play().catch(() => { musicUI.innerText = "⚠️ Nhấn bắt đầu để kích hoạt nhạc"; });
-        }
-
-        bgm.onended = () => playMusic(currentIdx + 1);
-
-        // --- BIẾN GAME ---
-        let state = 'start'; 
-        let score = 0, rauMa = 0, frame = 0, speed = 8.5;
-        let mode = 'cube', bgH = 250;
-        let hiScore = localStorage.getItem('gdHiScore') || 0;
-        let hiRauMa = localStorage.getItem('gdHiRauMa') || 0;
-
-        const p = { x: 200, y: 0, w: 36, h: 36, dy: 0, rot: 0, gnd: false };
-        let obs = [], blks = [], items = [], ports = [];
-        let isPress = false;
 
         function startGame() {
-            overlay.style.display = 'none';
-            if (state === 'start' || state === 'dead') {
-                shuffle(playlist);
-                resetGameVars();
-                playMusic(0);
+            document.getElementById('overlay').style.display = 'none';
+            if (state !== 'playing') {
+                score = 0; rauMa = 0; frame = 0; p.y = c.height/2;
+                bgm.src = songFiles[Math.floor(Math.random()*5)];
+                bgm.play().catch(()=>{});
             }
             state = 'playing';
-            bgm.volume = 1;
-            anim();
-        }
-
-        function resetGameVars() {
-            score = 0; rauMa = 0; frame = 0; mode = 'cube';
-            obs = []; blks = []; items = []; ports = [];
-            p.y = c.height / 2; p.dy = 0; p.rot = 0;
-        }
-
-        function resetGameFull() {
-            resetGameVars();
-            startGame();
-        }
-
-        function checkCollision(player, o) {
-            const m = 6; // Margin an toàn
-            const px = player.x + m, py = player.y + m;
-            const pw = player.w - m*2, ph = player.h - m*2;
-            if (px < o.x + o.w && px + pw > o.x && py < o.y + o.h && py + ph > o.y) {
-                if (o.t === 'bot' && py + ph < o.y + (o.h * 0.25)) return false;
-                if (o.t === 'top' && py > o.y + (o.h * 0.75)) return false;
-                return true;
-            }
-            return false;
+            loop();
         }
 
         function die() {
             state = 'dead';
-            if (score > hiScore) { hiScore = score; localStorage.setItem('gdHiScore', hiScore); }
-            if (rauMa > hiRauMa) { hiRauMa = rauMa; localStorage.setItem('gdHiRauMa', hiRauMa); }
-            overlay.style.display = 'flex';
-            titleUI.innerText = "BẠN ĐÃ CHẾT";
-            titleUI.style.color = "#e74c3c";
-            statsUI.innerHTML = `<p style="font-size:20px">${Math.floor(score/10)}m - ${rauMa} rau má</p>`;
-            mainBtn.innerText = "THỬ LẠI";
-            resetBtn.style.display = 'none';
-            bgm.volume = 0.3;
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('title').innerText = "THẤT BẠI";
+            document.getElementById('btn-main').innerText = "THỬ LẠI (X)";
+            bgm.pause();
         }
 
-        window.onkeydown = (e) => {
-            if (state === 'playing') {
-                if (e.code === 'Space' || e.code === 'ArrowUp') isPress = true;
-                if (e.code === 'KeyP' || e.code === 'Escape') {
-                    state = 'paused';
-                    overlay.style.display = 'flex';
-                    titleUI.innerText = "TẠM DỪNG";
-                    titleUI.style.color = "#3498db";
-                    mainBtn.innerText = "TIẾP TỤC";
-                    resetBtn.style.display = 'block';
-                    bgm.volume = 0.2;
-                }
-                if (e.code === 'KeyN') playMusic(currentIdx + 1);
-            } else if ((state === 'dead' || state === 'start') && e.code === 'Space') {
-                startGame();
-            } else if (state === 'paused' && (e.code === 'KeyP' || e.code === 'Escape')) {
-                startGame();
-            }
-        };
-        window.onkeyup = (e) => isPress = false;
-        window.onmousedown = () => { if(state === 'playing') isPress = true; };
-        window.onmouseup = () => isPress = false;
-
-        function spawn() {
+        function loop() {
             if (state !== 'playing') return;
-            const floor = c.height - 100;
-            if (frame % 85 === 0 && mode === 'cube') {
-                if (Math.random() < 0.5) obs.push({x: c.width, y: floor - 42, w: 32, h: 42, t: 'bot'});
-                else blks.push({x: c.width, y: floor - 130, w: 180, h: 32});
-            }
-            if (frame % 60 === 0) items.push({x: c.width, y: mode==='cube' ? floor-75 : 150+Math.random()*(c.height-300)});
-            if ((mode === 'ship' || mode === 'wave') && frame % 22 === 0) {
-                let gap = mode === 'ship' ? 190 : 160;
-                let mv = Math.sin(frame/25)*(c.height/5);
-                obs.push({x: c.width, y: 50, w: 60, h: (c.height/2-gap)+mv, t: 'top'});
-                obs.push({x: c.width, y: floor - ((c.height/2-gap)-mv), w: 60, h: (c.height/2-gap)-mv, t: 'bot'});
-            }
-            if (frame % 500 === 0) {
-                const list = ['cube', 'ship', 'wave'].filter(m => m !== mode);
-                ports.push({x: c.width, y: 50, w: 70, h: floor-50, to: list[Math.floor(Math.random()*list.length)]});
-            }
-        }
-
-        function anim() {
-            if (state !== 'playing') return;
+            updateGamepad();
             frame++; score++;
-            const floor = c.height - 100, ceil = 50;
-            bgH = (bgH + 0.2) % 360;
-            ctx.fillStyle = `hsla(${bgH}, 40%, 5%, 1)`;
-            ctx.fillRect(0,0,c.width,c.height);
+            ctx.fillStyle = "#050505"; ctx.fillRect(0,0,c.width,c.height);
 
-            if (mode === 'ship') { p.dy += (isPress ? -0.8 : 0.7); p.dy *= 0.98; p.rot = p.dy*2.5; }
-            else if (mode === 'wave') { p.dy = isPress ? -9 : 9; p.rot = isPress ? -45 : 45; }
-            else { 
-                p.dy += 1.25; if(isPress && p.gnd) p.dy = -15.5; 
-                if(!p.gnd) p.rot += 6; else p.rot = Math.round(p.rot/90)*90;
-            }
+            // Vật lý
+            p.dy += 1.3; if(isPress && p.gnd) p.dy = -16;
             p.y += p.dy;
-            if(p.y > floor-p.h){ p.y = floor-p.h; p.dy = 0; p.gnd = true; }
-            else if(p.y < ceil){ p.y = ceil; p.dy = 0; } else p.gnd = false;
+            const floor = c.height - 150;
+            if(p.y > floor - p.h) { p.y = floor - p.h; p.dy = 0; p.gnd = true; p.rot = 0; }
+            else { p.gnd = false; p.rot += 5; }
 
-            ctx.fillStyle = `hsl(${bgH}, 100%, 50%)`;
-            ctx.fillRect(0, floor, c.width, 10); ctx.fillRect(0, ceil-10, c.width, 10);
-
-            blks.forEach((b, i) => {
-                b.x -= speed; ctx.fillStyle = '#333'; ctx.fillRect(b.x, b.y, b.w, b.h);
-                if(p.x < b.x+b.w && p.x+p.w > b.x && p.y+p.h > b.y && p.y < b.y+b.h) {
-                    if(p.dy > 0 && p.y+p.h < b.y+20){ p.y = b.y-p.h; p.dy = 0; p.gnd = true; } else die();
-                }
-                if(b.x < -200) blks.splice(i, 1);
-            });
-
-            obs.forEach((o, i) => {
-                o.x -= speed; ctx.fillStyle = '#f44';
-                ctx.beginPath();
-                if(o.t === 'top') {
-                    ctx.moveTo(o.x, 50); ctx.lineTo(o.x+o.w, 50); ctx.lineTo(o.x+o.w/2, 50+o.h);
-                } else {
-                    ctx.moveTo(o.x, floor); ctx.lineTo(o.x+o.w, floor); ctx.lineTo(o.x+o.w/2, floor-o.h);
-                }
-                ctx.fill();
-                if(checkCollision(p, o)) die();
-                if(o.x < -100) obs.splice(i, 1);
-            });
-
-            ports.forEach((o, i) => {
-                o.x -= speed; ctx.fillStyle = o.to==='wave'?'#0ff':o.to==='ship'?'#ff0':'#0f0';
-                ctx.globalAlpha = 0.3; ctx.fillRect(o.x, o.y, o.w, o.h); ctx.globalAlpha = 1;
-                if(p.x+p.w > o.x && p.x < o.x+o.w) mode = o.to;
-                if(o.x < -100) ports.splice(i, 1);
-            });
-
-            items.forEach((m, i) => {
-                m.x -= speed; ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(m.x, m.y, 12, 0, 7); ctx.fill();
-                if(Math.hypot(p.x+18-m.x, p.y+18-m.y) < 35){ items.splice(i, 1); rauMa++; }
-                if(m.x < -100) items.splice(i, 1);
-            });
-
-            // Player
-            ctx.save(); ctx.translate(p.x+p.w/2, p.y+p.h/2); ctx.rotate(p.rot*Math.PI/180);
-            let pC = mode==='ship'?'#ff0':mode==='wave'?'#0ff':'#0f0';
-            ctx.fillStyle = pC; ctx.shadowBlur = 15; ctx.shadowColor = pC;
-            ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+            // Vẽ sàn & Player
+            ctx.fillStyle = "#2ecc71"; ctx.fillRect(0, floor, c.width, 10);
+            ctx.save();
+            ctx.translate(p.x + p.w/2, p.y + p.h/2);
+            ctx.rotate(p.rot * Math.PI / 180);
+            ctx.fillStyle = "#0f0"; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(-p.w/2, -p.h/2, p.w, p.h);
+            ctx.restore();
 
             // UI
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left'; ctx.shadowBlur = 0;
-            ctx.fillText(`RAU MÁ: ${rauMa}`, 30, 40);
-            ctx.textAlign = 'right';
-            ctx.fillText(`KỶ LỤC: ${Math.floor(hiScore/10)}m`, c.width-30, 40);
-            ctx.fillText(`HIỆN TẠI: ${Math.floor(score/10)}m`, c.width-30, 70);
+            ctx.fillStyle = "white"; ctx.font = "30px Arial";
+            ctx.fillText("RAU MÁ: " + rauMa, 80, 80);
+            ctx.fillText(Math.floor(score/10) + "m", c.width - 150, 80);
 
-            requestAnimationFrame(anim);
+            requestAnimationFrame(loop);
         }
 
-        setInterval(spawn, 50);
-        musicUI.innerText = "🎵 Sẵn sàng phát: " + songFiles.length + " bài nhạc";
+        window.onresize = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
+        window.onresize();
+        setInterval(() => { if(state !== 'playing') updateGamepad(); }, 50);
     </script>
 </body>
 </html>
