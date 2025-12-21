@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Geometry Rau Má - Universal</title>
+    <title>Geometry Rau Má - Final Universal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; }
@@ -9,34 +9,27 @@
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.9); color: white; z-index: 100; text-align: center;
-            padding: 40px; box-sizing: border-box;
+            background: rgba(0,0,0,0.85); color: white; z-index: 100; text-align: center; padding: 40px;
         }
-        .btn {
-            padding: 20px 50px; font-size: 28px; cursor: pointer; border: 4px solid #fff;
-            border-radius: 50px; background: #2ecc71; color: white; font-weight: bold;
-        }
-        #cache-info { font-size: 14px; color: #f1c40f; margin-bottom: 15px; }
-        .credits { font-size: 16px; color: #888; margin-top: 20px; }
+        .btn { padding: 20px 50px; font-size: 28px; cursor: pointer; border: 4px solid #fff; border-radius: 50px; background: #2ecc71; color: white; font-weight: bold; }
+        #status { font-size: 16px; color: #f1c40f; margin-bottom: 15px; }
+        .credits { font-size: 14px; color: #888; margin-top: 20px; }
     </style>
 </head>
 <body>
     <div id="overlay">
         <h1 id="title" style="font-size: 60px; color: #2ecc71; margin: 0;">GEOMETRY RAU MÁ</h1>
-        <div id="cache-info">Đang kiểm tra dữ liệu Offline...</div>
+        <div id="status">Đang tải dữ liệu...</div>
         <button class="btn" id="btn-main" onclick="startGame()">BẮT ĐẦU</button>
-        <div class="credits">Music: Creo, Dimrain47, Tommi Uimonen</div>
-        <div id="device-info" style="font-size: 12px; margin-top: 10px; color: #555;"></div>
+        <div class="credits">Music: Creo, Dimrain47, Tommi Uimonen<br>X (PS4) | Touch (Mobile) | Space (PC)</div>
     </div>
     <canvas id="g"></canvas>
 
     <script>
-        // --- 1. ĐĂNG KÝ SERVICE WORKER (OFFLINE MODE) ---
+        // --- 1. OFFLINE CACHE ---
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').then(() => {
-                document.getElementById('cache-info').innerText = "✅ ĐÃ LƯU OFFLINE (SẴN SÀNG CHO PS4)";
-            }).catch(() => {
-                document.getElementById('cache-info').innerText = "⚠️ Chế độ Offline lỗi";
+                document.getElementById('status').innerText = "✅ ĐÃ LƯU OFFLINE";
             });
         }
 
@@ -44,43 +37,38 @@
         const ctx = c.getContext('2d');
         const songFiles = ["music/music1.mp3", "music/music2.mp3", "music/music3.mp3", "music/music4.mp3", "music/music5.mp3"];
         const bgm = new Audio();
-        let state = 'start', score = 0, rauMa = 0, frame = 0, isPress = false;
-        const p = { x: 200, y: 0, w: 45, h: 45, dy: 0, gnd: false, rot: 0 };
-
-        // --- 2. ĐIỀU KHIỂN ĐA NỀN TẢNG ---
         
-        // PC & PS4 (Bàn phím + Nút ảo)
-        window.onkeydown = (e) => { if(e.code==='Space') handleInputStart(); };
-        window.onkeyup = (e) => { if(e.code==='Space') handleInputEnd(); };
+        let state = 'start', score = 0, rauMa = 0, frame = 0, speed = 8.5;
+        let mode = 'cube', isPress = false, lastX = false;
+        let obs = [], blks = [], items = [], ports = [];
+        const p = { x: 200, y: 0, w: 40, h: 40, dy: 0, gnd: false, rot: 0 };
 
-        // Mobile
-        window.ontouchstart = (e) => { e.preventDefault(); handleInputStart(); };
-        window.ontouchend = () => handleInputEnd();
+        // --- 2. INPUT HANDLER (PS4, MOBILE, PC) ---
+        const startInput = () => { if(state==='playing') isPress = true; else startGame(); };
+        const endInput = () => { isPress = false; };
 
-        // Gamepad (PS4)
-        let lastX = false;
-        function pollGamepad() {
+        window.onkeydown = (e) => { if(e.code==='Space') startInput(); };
+        window.onkeyup = (e) => { if(e.code==='Space') endInput(); };
+        window.ontouchstart = (e) => { e.preventDefault(); startInput(); };
+        window.ontouchend = () => endInput();
+
+        function checkGamepad() {
             const gps = navigator.getGamepads();
             if (gps[0]) {
                 const x = gps[0].buttons[0].pressed;
-                if (x) handleInputStart();
-                else if (lastX) handleInputEnd();
+                if (x && !lastX) startInput();
+                else if (!x && lastX) endInput();
                 lastX = x;
             }
         }
 
-        function handleInputStart() {
-            if (state === 'playing') isPress = true;
-            else if (state !== 'playing') startGame();
-        }
-        function handleInputEnd() { isPress = false; }
-
-        // --- 3. VÒNG LẶP GAME ---
-
+        // --- 3. GAME LOGIC ---
         function startGame() {
             document.getElementById('overlay').style.display = 'none';
             if (state !== 'playing') {
-                score = 0; rauMa = 0; p.y = c.height/2;
+                score = 0; rauMa = 0; frame = 0; mode = 'cube';
+                obs = []; blks = []; items = []; ports = [];
+                p.y = c.height/2; p.dy = 0;
                 bgm.src = songFiles[Math.floor(Math.random()*5)];
                 bgm.play().catch(()=>{});
             }
@@ -88,39 +76,99 @@
             loop();
         }
 
+        function spawn() {
+            const floor = c.height - 100;
+            if (frame % 80 === 0 && mode === 'cube') {
+                if (Math.random() < 0.6) obs.push({x: c.width, y: floor - 40, w: 35, h: 40, t: 'bot'});
+                else blks.push({x: c.width, y: floor - 120, w: 150, h: 30});
+            }
+            if (frame % 60 === 0) items.push({x: c.width, y: floor - 70, w: 20, h: 20});
+            if (frame % 600 === 0) {
+                const next = mode === 'cube' ? 'ship' : 'cube';
+                ports.push({x: c.width, y: 50, w: 60, h: floor-50, to: next});
+            }
+        }
+
+        function die() {
+            state = 'dead';
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('title').innerText = "THẤT BẠI";
+            bgm.pause();
+        }
+
         function loop() {
             if (state !== 'playing') return;
-            pollGamepad();
+            checkGamepad();
             frame++; score++;
+            spawn();
+
+            ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0,0,c.width,c.height);
+            const floor = c.height - 100;
+
+            // Vật lý theo mode
+            if (mode === 'ship') { p.dy += (isPress ? -0.8 : 0.7); p.dy *= 0.98; p.rot = p.dy * 2; }
+            else { p.dy += 1.3; if(isPress && p.gnd) p.dy = -16; p.rot = p.gnd ? 0 : p.rot + 5; }
             
-            ctx.fillStyle = "#080808"; ctx.fillRect(0,0,c.width,c.height);
-
-            // Vật lý đơn giản
-            p.dy += 1.3; if(isPress && p.gnd) p.dy = -16;
             p.y += p.dy;
-            const floor = c.height - 150;
-            if(p.y > floor - p.h) { p.y = floor - p.h; p.dy = 0; p.gnd = true; p.rot = 0; }
-            else { p.gnd = false; p.rot += 5; }
+            if(p.y > floor - p.h) { p.y = floor - p.h; p.dy = 0; p.gnd = true; } 
+            else if(p.y < 50) { p.y = 50; p.dy = 0; }
+            else p.gnd = false;
 
-            // Vẽ sàn & Player
+            // Vẽ sàn
             ctx.fillStyle = "#2ecc71"; ctx.fillRect(0, floor, c.width, 10);
-            ctx.save();
-            ctx.translate(p.x + p.w/2, p.y + p.h/2);
-            ctx.rotate(p.rot * Math.PI / 180);
-            ctx.fillStyle = "#0f0"; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-            ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(-p.w/2, -p.h/2, p.w, p.h);
+
+            // Xử lý Obstacles (Gai)
+            obs.forEach((o, i) => {
+                o.x -= speed;
+                ctx.fillStyle = "#ff4757";
+                ctx.beginPath();
+                ctx.moveTo(o.x, floor); ctx.lineTo(o.x+o.w, floor); ctx.lineTo(o.x+o.w/2, floor-o.h);
+                ctx.fill();
+                if(p.x < o.x+o.w-5 && p.x+p.w > o.x+5 && p.y+p.h > floor-o.h+5) die();
+                if(o.x < -50) obs.splice(i, 1);
+            });
+
+            // Xử lý Blocks
+            blks.forEach((b, i) => {
+                b.x -= speed;
+                ctx.fillStyle = "#333"; ctx.fillRect(b.x, b.y, b.w, b.h);
+                if(p.x < b.x+b.w && p.x+p.w > b.x && p.y+p.h > b.y && p.y < b.y+b.h) {
+                    if(p.dy > 0 && p.y+p.h < b.y+20) { p.y = b.y-p.h; p.dy = 0; p.gnd = true; }
+                    else die();
+                }
+                if(b.x < -200) blks.splice(i, 1);
+            });
+
+            // Rau má (Items)
+            items.forEach((m, i) => {
+                m.x -= speed;
+                ctx.fillStyle = "#2ecc71"; ctx.beginPath(); ctx.arc(m.x, m.y, 10, 0, 7); ctx.fill();
+                if(Math.hypot(p.x-m.x, p.y-m.y) < 40) { items.splice(i, 1); rauMa++; }
+            });
+
+            // Cổng chuyển mode
+            ports.forEach((o, i) => {
+                o.x -= speed;
+                ctx.fillStyle = o.to === 'ship' ? "#ff0" : "#0f0"; ctx.globalAlpha = 0.3;
+                ctx.fillRect(o.x, o.y, o.w, o.h); ctx.globalAlpha = 1;
+                if(p.x > o.x && p.x < o.x+o.w) mode = o.to;
+            });
+
+            // Player
+            ctx.save(); ctx.translate(p.x+p.w/2, p.y+p.h/2); ctx.rotate(p.rot*Math.PI/180);
+            ctx.fillStyle = mode === 'ship' ? "#ff0" : "#0f0";
+            ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); ctx.strokeStyle="#fff"; ctx.strokeRect(-p.w/2, -p.h/2, p.w, p.h);
             ctx.restore();
 
-            // Score UI
-            ctx.fillStyle = "white"; ctx.font = "bold 30px Arial";
-            ctx.fillText(Math.floor(score/10) + "m", c.width - 120, 70);
+            // UI
+            ctx.fillStyle = "white"; ctx.font = "25px Arial";
+            ctx.fillText(`Rau Má: ${rauMa} | ${Math.floor(score/10)}m`, 50, 50);
 
             requestAnimationFrame(loop);
         }
 
         window.onresize = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
         window.onresize();
-        setInterval(() => { if(state !== 'playing') pollGamepad(); }, 50);
     </script>
 </body>
 </html>
