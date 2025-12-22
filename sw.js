@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gd-rauma-v5-final';
+const CACHE_NAME = 'gd-rauma-369';
 const ASSETS = [
   './',
   './index.html',
