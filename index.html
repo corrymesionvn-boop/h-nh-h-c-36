@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hình Học 36</title>
+    <title>Hình Học 36 - Hardcore</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; touch-action: none; }
@@ -15,20 +15,14 @@
             position: fixed; bottom: 30px; right: 30px; width: 70px; height: 70px;
             background: rgba(255,255,255,0.2); border: 3px solid #fff; border-radius: 50%;
             color: white; font-size: 30px; display: none; align-items: center; justify-content: center;
-            z-index: 200; font-weight: bold; pointer-events: auto;
+            z-index: 200; font-weight: bold;
         }
-        .btn {
-            padding: 15px 40px; font-size: 22px; cursor: pointer; border: none;
-            border-radius: 50px; background: #2ecc71; color: white; font-weight: bold; margin: 10px;
-        }
+        .btn { padding: 15px 40px; font-size: 22px; cursor: pointer; border: none; border-radius: 50px; background: #2ecc71; color: white; font-weight: bold; margin: 10px; }
         #mute-btn { background: #e67e22; font-size: 16px; display: none; }
-        #game-ui {
-            position: fixed; top: 20px; left: 20px; right: 20px;
-            display: flex; justify-content: space-between;
-            color: white; font-size: 24px; font-weight: bold; z-index: 50; pointer-events: none;
-            text-shadow: 2px 2px #000;
-        }
-        .joke-warn { font-size: 14px; color: #f1c40f; margin-bottom: 20px; max-width: 80%; line-height: 1.4; }
+        #game-ui { position: fixed; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; color: white; font-size: 24px; font-weight: bold; z-index: 50; text-shadow: 2px 2px #000; pointer-events: none; }
+        .leaderboard { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin: 15px 0; border: 1px dashed #444; width: 250px; }
+        .leaderboard div { margin: 5px 0; font-size: 16px; }
+        .joke-warn { font-size: 12px; color: #f1c40f; margin-bottom: 10px; opacity: 0.8; }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -41,10 +35,17 @@
     <div id="mobile-pause">||</div>
 
     <div id="overlay">
-        <h1 id="title" style="color: #2ecc71; font-size: 45px; margin-bottom: 5px;">HÌNH HỌC 36</h1>
-        <div class="joke-warn">Lưu ý: Đây chỉ là game do AI làm ra với mục đích joke, vui được bao nhiêu thì cứ chơi nhé :D!</div>
-        <div id="hi-display" style="margin-bottom: 20px; color: #f1c40f; font-size: 20px;">0m | 0 Rau Má</div>
-        <button class="btn" onclick="startGame()">BẮT ĐẦU CHƠI</button>
+        <h1 id="title" style="color: #2ecc71; font-size: 40px; margin: 0;">HÌNH HỌC 36</h1>
+        <div class="joke-warn">Game làm theo phong cách joke - Chúc bạn vui vẻ :D!</div>
+        
+        <div class="leaderboard">
+            <div style="color: #f1c40f; font-weight: bold; border-bottom: 1px solid #444; margin-bottom: 10px;">🏆 BẢNG VÀNG THANH HÓA</div>
+            <div id="top1">#1: 0m</div>
+            <div id="top2">#2: 0m</div>
+            <div id="top3">#3: 0m</div>
+        </div>
+
+        <button class="btn" onclick="startGame()">BẮT ĐẦU</button>
         <button id="mute-btn" class="btn" onclick="toggleMute()">NHẠC: BẬT</button>
     </div>
 
@@ -56,24 +57,35 @@
         const bgm = new Audio();
         const songFiles = ["music1.mp3", "music2.mp3", "music3.mp3", "music4.mp3", "music5.mp3"];
         
-        const raumaImg = new Image();
-        raumaImg.src = 'rauma.png';
+        const raumaImg = new Image(); raumaImg.src = 'rauma.png';
         let hasImg = false; raumaImg.onload = () => hasImg = true;
 
-        let state = 'start', score = 0, rauMa = 0, speed = 9, mode = 'cube', frame = 0, isMuted = false;
-        let hiScore = localStorage.getItem('gdHiScore') || 0;
-        let hiRauMa = localStorage.getItem('gdHiRauMa') || 0;
-        const p = { x: 180, y: 0, w: 38, h: 38, dy: 0, rot: 0, gnd: false };
+        let state = 'start', score = 0, rauMa = 0, speed = 10, mode = 'cube', frame = 0, isMuted = false;
+        let trails = []; // Đường zic zac
+        let leaders = JSON.parse(localStorage.getItem('gdTopScores')) || [0, 0, 0];
+        const p = { x: 180, y: 0, w: 36, h: 36, dy: 0, rot: 0, gnd: false };
         let obs = [], items = [], ports = [];
         let isPress = false, lastX = false, lastTri = false;
 
         const resize = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
         window.onresize = resize; resize();
 
-        function toggleMute() {
-            isMuted = !isMuted; bgm.muted = isMuted;
-            muteBtn.innerText = isMuted ? "NHẠC: TẮT" : "NHẠC: BẬT";
+        function updateLeaderboardUI() {
+            document.getElementById('top1').innerText = `#1: ${Math.floor(leaders[0]/10)}m`;
+            document.getElementById('top2').innerText = `#2: ${Math.floor(leaders[1]/10)}m`;
+            document.getElementById('top3').innerText = `#3: ${Math.floor(leaders[2]/10)}m`;
         }
+        updateLeaderboardUI();
+
+        function saveScore(newScore) {
+            leaders.push(newScore);
+            leaders.sort((a, b) => b - a);
+            leaders = leaders.slice(0, 3);
+            localStorage.setItem('gdTopScores', JSON.stringify(leaders));
+            updateLeaderboardUI();
+        }
+
+        function toggleMute() { isMuted = !isMuted; bgm.muted = isMuted; muteBtn.innerText = isMuted ? "NHẠC: TẮT" : "NHẠC: BẬT"; }
 
         function togglePause(e) {
             if(e) { e.stopPropagation(); e.preventDefault(); }
@@ -88,13 +100,11 @@
         mobilePause.addEventListener('mousedown', togglePause);
 
         function startGame() {
-            overlay.style.display = 'none';
-            document.getElementById('game-ui').style.display = 'flex';
-            mobilePause.style.display = 'flex';
-            muteBtn.style.display = 'none';
+            overlay.style.display = 'none'; document.getElementById('game-ui').style.display = 'flex';
+            mobilePause.style.display = 'flex'; muteBtn.style.display = 'none';
             if (state !== 'paused') {
-                score = 0; rauMa = 0; mode = 'cube'; speed = 9;
-                obs = []; items = []; ports = [];
+                score = 0; rauMa = 0; mode = 'cube'; speed = 10;
+                obs = []; items = []; ports = []; trails = [];
                 p.y = c.height / 2; p.dy = 0;
                 bgm.src = "music/" + songFiles[Math.floor(Math.random()*5)];
                 bgm.loop = true; bgm.play().catch(()=>{});
@@ -105,49 +115,17 @@
         function die() {
             state = 'dead'; mobilePause.style.display = 'none'; overlay.style.display = 'flex';
             muteBtn.style.display = 'none'; document.getElementById('title').innerText = "BẠN ĐÃ CHẾT";
-            if (score > hiScore) { hiScore = score; localStorage.setItem('gdHiScore', hiScore); }
-            if (rauMa > hiRauMa) { hiRauMa = rauMa; localStorage.setItem('gdHiRauMa', hiRauMa); }
-            updateUI(); bgm.pause();
+            saveScore(score); bgm.pause();
         }
 
-        function updateUI() {
-            document.getElementById('hi-display').innerText = `${Math.floor(hiScore/10)}m | ${hiRauMa} Rau Má`;
-            document.getElementById('ui-rm').innerText = `Rau Má: ${rauMa}`;
-            document.getElementById('ui-sc').innerText = `${Math.floor(score/10)}m`;
-        }
-
-        // --- HỆ THỐNG ĐIỀU KHIỂN ĐA NỀN TẢNG (FIXED) ---
-        
-        // 1. Máy tính (Phím Space/Up)
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                if (state === 'playing') isPress = true;
-                else if (overlay.style.display === 'none') startGame();
-            }
-        });
-        window.addEventListener('keyup', (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') isPress = false;
-        });
-
-        // 2. Máy tính (Chuột)
-        window.addEventListener('mousedown', (e) => {
-            if (e.button === 0 && e.target.id !== 'mobile-pause' && !e.target.className.includes('btn')) {
-                if (state === 'playing') isPress = true;
-                else if (overlay.style.display === 'none') startGame();
-            }
-        });
+        // --- INPUTS ---
+        window.addEventListener('keydown', e => { if(e.code==='Space'||e.code==='ArrowUp'){if(state==='playing')isPress=true; else if(overlay.style.display==='none')startGame();}});
+        window.addEventListener('keyup', e => { if(e.code==='Space'||e.code==='ArrowUp')isPress=false; });
+        window.addEventListener('touchstart', e => { if(e.target.id==='mobile-pause'||e.target.className.includes('btn'))return; e.preventDefault(); if(state==='playing')isPress=true; else if(overlay.style.display==='none')startGame(); }, {passive:false});
+        window.addEventListener('touchend', () => isPress = false);
+        window.addEventListener('mousedown', e => { if(e.button===0 && e.target.id!=='mobile-pause' && !e.target.className.includes('btn')){ if(state==='playing')isPress=true; else if(overlay.style.display==='none')startGame();} });
         window.addEventListener('mouseup', () => isPress = false);
 
-        // 3. Điện thoại (Touch)
-        window.addEventListener('touchstart', (e) => {
-            if (e.target.id === 'mobile-pause' || e.target.className.includes('btn')) return;
-            e.preventDefault();
-            if (state === 'playing') isPress = true;
-            else if (overlay.style.display === 'none') startGame();
-        }, { passive: false });
-        window.addEventListener('touchend', () => isPress = false);
-
-        // 4. Gamepad PS4
         function checkGamepad() {
             const gps = navigator.getGamepads();
             if (gps[0]) {
@@ -160,32 +138,58 @@
 
         function spawn() {
             if (state !== 'playing') return;
-            const floor = c.height - 100, isHard = score > 2000;
-            if (frame % 85 === 0 && mode === 'cube') {
-                let count = isHard ? (Math.random() > 0.5 ? 3 : 2) : 1;
-                for(let i=0; i<count; i++) obs.push({x: c.width + (i*35), y: floor-44, w: 32, h: 44, t: 'bot'});
+            const floor = c.height - 100, ceil = 50;
+            frame++;
+            if (frame % 70 === 0 && mode === 'cube') {
+                let r = Math.random();
+                if(r < 0.8) obs.push({x: c.width, y: floor-44, w: 32, h: 44, t: 'bot'});
             }
-            if (frame % 450 === 0) {
-                const list = ['cube', 'ship', 'wave'].filter(m => m !== mode);
-                ports.push({x: c.width, y: 50, w: 70, h: floor-50, to: list[Math.floor(Math.random()*list.length)]});
+            if (frame % 400 === 0) {
+                const modes = ['cube', 'ship', 'wave'].filter(m => m !== mode);
+                ports.push({x: c.width, y: 50, w: 70, h: floor-50, to: modes[Math.floor(Math.random()*modes.length)]});
             }
-            if (frame % 60 === 0) items.push({x: c.width, y: mode==='cube'?floor-75:150+Math.random()*(c.height-300)});
+            if (frame % 50 === 0) items.push({x: c.width, y: mode==='cube'?floor-80:150+Math.random()*(c.height-300)});
+            
+            if ((mode === 'ship' || mode === 'wave') && frame % 20 === 0) {
+                let gap = mode === 'wave' ? 140 : 180; // Wave hẹp hơn, khó hơn
+                let mv = Math.sin(frame/15)*(c.height/4);
+                obs.push({x: c.width, y: 50, w: 60, h: (c.height/2-gap)+mv, t: 'top'});
+                obs.push({x: c.width, y: floor - ((c.height/2-gap)-mv), w: 60, h: (c.height/2-gap)-mv, t: 'bot'});
+            }
         }
 
         function anim() {
             if (state !== 'playing') return;
-            checkGamepad(); frame++; score++;
-            const floor = c.height - 100, ceil = 50;
-            ctx.fillStyle = `hsla(${(frame/5)%360}, 30%, 5%, 1)`; ctx.fillRect(0,0,c.width,c.height);
+            checkGamepad(); spawn(); score++;
+            if(score % 1000 === 0) speed += 0.3; // Tăng dần tốc độ
 
-            if (mode === 'ship') { p.dy += (isPress ? -0.85 : 0.75); p.dy *= 0.98; p.rot = p.dy*2.5; }
-            else if (mode === 'wave') { p.dy = isPress ? -10 : 10; p.rot = isPress ? -45 : 45; }
-            else { p.dy += 1.45; if(isPress && p.gnd) p.dy = -16.5; p.rot = p.gnd ? Math.round(p.rot/90)*90 : p.rot+7; }
+            const floor = c.height - 100, ceil = 50;
+            ctx.fillStyle = `hsla(${(frame/5)%360}, 20%, 5%, 1)`; ctx.fillRect(0,0,c.width,c.height);
+
+            // LOGIC CHẾ ĐỘ
+            if (mode === 'ship') { p.dy += (isPress ? -0.9 : 0.8); p.dy *= 0.98; p.rot = p.dy*3; }
+            else if (mode === 'wave') { p.dy = isPress ? -11 : 11; p.rot = isPress ? -45 : 45; }
+            else { p.dy += 1.5; if(isPress && p.gnd) p.dy = -17; p.rot = p.gnd ? Math.round(p.rot/90)*90 : p.rot+8; }
 
             p.y += p.dy;
             if(p.y > floor-p.h){ p.y = floor-p.h; p.dy = 0; p.gnd = true; }
             else if(p.y < ceil){ p.y = ceil; p.dy = 0; } else p.gnd = false;
 
+            // VẼ ĐƯỜNG ZIC ZAC / TRAIL
+            trails.push({x: p.x + p.w/2, y: p.y + p.h/2});
+            if(trails.length > 30) trails.shift();
+            
+            ctx.beginPath();
+            ctx.strokeStyle = mode==='wave'?'#0ff':mode==='ship'?'#ff0':'rgba(0,0,0,0)';
+            ctx.lineWidth = 4;
+            for(let i=0; i<trails.length; i++){
+                trails[i].x -= speed;
+                if(i===0) ctx.moveTo(trails[i].x, trails[i].y);
+                else ctx.lineTo(trails[i].x, trails[i].y);
+            }
+            ctx.stroke();
+
+            // VẬT CẢN & ITEM
             ctx.fillStyle = `hsl(${(frame/5)%360}, 100%, 50%)`;
             ctx.fillRect(0, floor, c.width, 10); ctx.fillRect(0, ceil-10, c.width, 10);
 
@@ -194,14 +198,14 @@
                 if(o.t==='top'){ctx.moveTo(o.x,50);ctx.lineTo(o.x+o.w,50);ctx.lineTo(o.x+o.w/2,50+o.h);}
                 else{ctx.moveTo(o.x,floor);ctx.lineTo(o.x+o.w,floor);ctx.lineTo(o.x+o.w/2,floor-o.h);}
                 ctx.fill();
-                if(p.x+8 < o.x+o.w && p.x+p.w-8 > o.x && p.y+8 < o.y+o.h && p.y+p.h-8 > o.y) die();
+                if(p.x+6 < o.x+o.w && p.x+p.w-6 > o.x && p.y+6 < o.y+o.h && p.y+p.h-6 > o.y) die();
                 if(o.x < -100) obs.splice(i, 1);
             });
 
             ports.forEach((o, i) => { 
                 o.x -= speed; ctx.fillStyle=o.to==='wave'?'#0ff':o.to==='ship'?'#ff0':'#0f0';
-                ctx.globalAlpha=0.3; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.globalAlpha=1;
-                if(p.x+p.w > o.x && p.x < o.x+o.w) { if(mode !== o.to) { mode = o.to; obs = []; } }
+                ctx.globalAlpha=0.2; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.globalAlpha=1;
+                if(p.x+p.w > o.x && p.x < o.x+o.w) { if(mode !== o.to) { mode = o.to; obs = []; trails = []; } }
                 if(o.x < -100) ports.splice(i, 1);
             });
 
@@ -209,18 +213,23 @@
                 m.x -= speed; 
                 if(hasImg) ctx.drawImage(raumaImg, m.x-22, m.y-22, 44, 44);
                 else { ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.arc(m.x,m.y,12,0,7); ctx.fill(); }
-                if(Math.hypot(p.x+19-m.x, p.y+19-m.y) < 36){ items.splice(i,1); rauMa++; }
+                if(Math.hypot(p.x+18-m.x, p.y+18-m.y) < 35){ items.splice(i,1); rauMa++; }
                 if(m.x < -100) items.splice(i, 1);
             });
 
+            // NHÂN VẬT
             ctx.save(); ctx.translate(p.x+p.w/2, p.y+p.h/2); ctx.rotate(p.rot*Math.PI/180);
             let pC = mode==='ship'?'#ff0':mode==='wave'?'#0ff':'#0f0';
-            ctx.fillStyle=pC; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+            ctx.fillStyle=pC; ctx.shadowBlur=15; ctx.shadowColor=pC;
+            ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+            ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.strokeRect(-p.w/2,-p.h/2,p.w,p.h);
+            ctx.restore();
 
-            updateUI(); requestAnimationFrame(anim);
+            document.getElementById('ui-rm').innerText = `Rau Má: ${rauMa}`;
+            document.getElementById('ui-sc').innerText = `${Math.floor(score/10)}m`;
+            requestAnimationFrame(anim);
         }
-        setInterval(spawn, 50);
-        updateUI();
+        updateLeaderboardUI();
     </script>
 </body>
 </html>
