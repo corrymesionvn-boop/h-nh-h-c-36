@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hình Học 36</title>
+    <title>Hình Học 36 - Final Mystery</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <style>
+        /* GIỮ NGUYÊN STYLE GỐC */
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; touch-action: none; -webkit-user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; }
         #game-ui { position: fixed; top: 20px; left: 20px; color: white; font-size: 18px; font-weight: bold; pointer-events: none; z-index: 100; text-shadow: 2px 2px #000; }
         .top-btns { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1001; }
         .ctrl-btn { width: 50px; height: 50px; background: rgba(255,255,255,0.2); border: 2px solid #fff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 20px; }
+        
         #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: white; z-index: 2000; text-align: center; }
         .skill-container { position: fixed; bottom: 30px; display: flex; flex-direction: column; align-items: center; z-index: 1000; }
         .use-btn { width: 65px; height: 65px; border-radius: 50%; border: 3px solid #fff; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; margin-bottom: 5px; }
@@ -24,8 +26,7 @@
 </head>
 <body>
     <div id="game-ui">
-        <div id="ui-rm">Rau Má: 0</div>
-        <div id="ui-sc">0m</div>
+        <div id="ui-rm" style="display: none;">Rau Má: 0</div> <div id="ui-sc">0m</div>
     </div>
     <div class="top-btns">
         <div class="ctrl-btn" id="mute-btn" onclick="toggleMute()">🔊</div>
@@ -37,11 +38,10 @@
 
     <div id="overlay">
         <div style="color:#ff4444; font-weight:bold; margin-bottom:5px; text-transform: uppercase;">⚠️ CẢNH BÁO: Game này do AI làm ra với mục đích joke, không có ý xúc phạm tới tổ chức hay cá nhân nào cả ⚠️</div>
-        <h2 style="color:#f1c40f; margin:0; font-size: 18px;">Update 1.1:</h2>
-        <div style="font-size: 12px; color: #ccc; margin-bottom: 10px;">
-            - Thêm Ufo, Spider, Ball, Swingcopter, Robot<br>
-            - Thêm Easter Egg & Blocks địa hình<br>
-            - Thêm skills, shop để mua skills
+        <h2 style="color:#f1c40f; margin:0; font-size: 18px;">Update 1.2:</h2>
+        <div style="font-size: 14px; color: #ccc; margin-bottom: 10px; line-height: 1.6;">
+            - Thêm Boss<br>
+            - Thêm Easter Egg
         </div>
         <h1 id="title" style="color:#2ecc71; margin: 5px 0; font-size: 36px; text-shadow: 0 0 10px rgba(46,204,113,0.5);">HÌNH HỌC 36</h1>
         <div id="wallet" style="color:#f1c40f; font-size:22px; font-weight:bold; margin-bottom: 10px;">0 Rau Má</div>
@@ -63,6 +63,8 @@
     <script>
         const c = document.getElementById('g'), ctx = c.getContext('2d');
         const raumaImg = new Image(); raumaImg.src = 'rauma.png';
+        const bossImg = new Image(); bossImg.src = 'boss.png';
+        const weaponImg = new Image(); weaponImg.src = 'weapon.png';
         const bgm = new Audio();
         const eeVideo = document.getElementById('ee-video');
         const eeCont = document.getElementById('ee-container');
@@ -75,18 +77,26 @@
 
         let state = 'start', score = 0, currentRauMa = 0, mode = 'cube', frame = 0, isPress = false, isMuted = false;
         let p = { x: 180, y: 0, w: 30, h: 30, dy: 0, rot: 0, gnd: false, grav: 1, ufoClick: false, iframes: 0 };
-        let obs = [], blocks = [], items = [], portals = [], trails = [], activeBuffs = { shield: 0, speed: 0 };
-        let bgColor = { h: 200, s: 50, l: 20 }; // Màu nền ban đầu (HSL)
+        let obs = [], blocks = [], items = [], portals = [], activeBuffs = { shield: 0, speed: 0 };
+        let bgColor = { h: 200, s: 50, l: 20 };
+        let boss = { active: false, appeared: false, y: 200, hp: 300, maxHp: 300, bullets: [], weapons: [], pProjectiles: [] };
 
         const floorY = () => c.height - 100;
         const ceilY = () => 50;
+
+        function playEasterEgg() {
+            state = 'easteregg';
+            bgm.pause();
+            eeCont.style.display = 'block';
+            eeVideo.play();
+            eeVideo.onended = () => { location.reload(); };
+        }
 
         function updateUI() {
             document.getElementById('wallet').innerText = `${totalRauMa} Rau Má`;
             document.getElementById('top1').innerHTML = `<span>🏆 TOP 1:</span> ${highscores[0]}m`;
             document.getElementById('top2').innerHTML = `<span>🥈 TOP 2:</span> ${highscores[1]}m`;
             document.getElementById('top3').innerHTML = `<span>🥉 TOP 3:</span> ${highscores[2]}m`;
-            document.getElementById('ui-rm').innerText = `Rau Má: ${currentRauMa}`;
             document.getElementById('ui-sc').innerText = `${Math.floor(score/10)}m`;
             document.getElementById('label-shield').innerText = `🛡️ x${inventory.shield}`;
             document.getElementById('label-speed').innerText = `⚡ x${inventory.speed}`;
@@ -97,11 +107,6 @@
         function die() {
             if(p.iframes > 0) return;
             if(activeBuffs.shield > 0) { activeBuffs.shield = 0; p.iframes = 60; p.dy = -8; return; }
-            if(Math.random() < 0.05) {
-                bgm.pause(); eeCont.style.display = 'block'; eeVideo.play();
-                eeVideo.onended = () => { location.reload(); };
-                return;
-            }
             state = 'dead'; totalRauMa += currentRauMa;
             highscores.push(Math.floor(score/10)); highscores.sort((a,b)=>b-a).splice(3);
             localStorage.setItem('gdTopScores', JSON.stringify(highscores));
@@ -119,8 +124,9 @@
         function startGame() {
             document.getElementById('overlay').style.display = 'none';
             if(state !== 'paused') {
-                score = 0; currentRauMa = 0; mode = 'cube'; obs = []; blocks = []; items = []; trails = [];
+                score = 0; currentRauMa = 0; mode = 'cube'; obs = []; blocks = []; items = []; portals = [];
                 p.y = floorY()-35; p.dy = 0; p.grav = 1; p.iframes = 0;
+                boss = { active: false, appeared: false, y: 200, hp: 300, maxHp: 300, bullets: [], weapons: [], pProjectiles: [] };
                 bgm.src = "music/" + playlist[Math.floor(Math.random() * playlist.length)];
                 bgm.loop = true; bgm.play().catch(()=>{});
             } else { bgm.play(); }
@@ -138,17 +144,13 @@
             if(state !== 'playing') return;
             frame++; score++;
             
-            // Background Animation (Đổi màu liên tục)
             bgColor.h = (bgColor.h + 0.2) % 360;
-            ctx.fillStyle = `hsl(${bgColor.h}, 40%, 15%)`;
+            ctx.fillStyle = boss.active ? '#1a0000' : `hsl(${bgColor.h}, 40%, 15%)`;
             ctx.fillRect(0, 0, c.width, c.height);
 
-            // Sàn & Trần phát sáng
             ctx.fillStyle = `hsl(${bgColor.h}, 60%, 10%)`;
-            ctx.fillRect(0, floorY(), c.width, 100);
-            ctx.fillRect(0, 0, c.width, ceilY());
-            ctx.strokeStyle = `hsl(${bgColor.h}, 80%, 50%)`;
-            ctx.lineWidth = 3;
+            ctx.fillRect(0, floorY(), c.width, 100); ctx.fillRect(0, 0, c.width, ceilY());
+            ctx.strokeStyle = `hsl(${bgColor.h}, 80%, 50%)`; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, floorY()); ctx.lineTo(c.width, floorY()); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, ceilY()); ctx.lineTo(c.width, ceilY()); ctx.stroke();
 
@@ -173,15 +175,51 @@
             if(p.y > floorY()-p.h) { p.y = floorY()-p.h; p.dy = 0; p.gnd = true; }
             if(p.y < ceilY()) { p.y = ceilY(); p.dy = 0; if(mode==='wave'||mode==='ship') die(); }
 
-            // Obstacles & Blocks
-            if(frame % 85 === 0) {
-                obs.push({x: c.width, y: floorY()-35, w: 30, h: 35, t: 'bot'});
-                if(Math.random() > 0.6) blocks.push({x: c.width+250, y: floorY()-80, w: 40, h: 40});
-            } else if(frame % 30 === 0 && (mode!=='cube' && mode!=='robot')) {
-                let waveY = Math.sin(frame/20)*(c.height/4);
-                let gap = 160 / difficulty;
-                obs.push({x: c.width, y: ceilY(), w: 45, h: (c.height/2-gap)+waveY, t: 'top'});
-                obs.push({x: c.width, y: floorY()-((c.height/2-gap)-waveY), w: 45, h: (c.height/2-gap)-waveY, t: 'bot'});
+            // Boss system - GAI ĐỎ
+            if(Math.floor(score/10) >= 450 && !boss.appeared) { boss.active = true; boss.appeared = true; mode = 'ship'; }
+            if(boss.active) {
+                boss.y += (p.y - boss.y) * 0.05;
+                if(bossImg.complete) ctx.drawImage(bossImg, c.width - 150, boss.y - 50, 100, 100);
+                ctx.fillStyle = '#555'; ctx.fillRect(c.width - 150, boss.y - 70, 100, 10);
+                ctx.fillStyle = '#f00'; ctx.fillRect(c.width - 150, boss.y - 70, (boss.hp/boss.maxHp)*100, 10);
+                
+                if(frame % 60 === 0) boss.bullets.push({x: c.width - 150, y: boss.y});
+                boss.bullets.forEach((b, i) => {
+                    b.x -= 12; ctx.fillStyle = '#ff0000';
+                    ctx.beginPath(); ctx.arc(b.x, b.y, 9, 0, 7); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+                    if(Math.hypot(p.x-b.x, p.y-b.y) < 25) { boss.bullets.splice(i,1); die(); }
+                });
+                if(frame % 120 === 0) boss.weapons.push({x: c.width, y: 150 + Math.random()*(c.height-300)});
+                boss.weapons.forEach((w, i) => {
+                    w.x -= curSpd; if(weaponImg.complete) ctx.drawImage(weaponImg, w.x-20, w.y-20, 40, 40);
+                    if(Math.hypot(p.x-w.x, p.y-w.y) < 30) { boss.weapons.splice(i,1); boss.pProjectiles.push({x: p.x, y: p.y}); }
+                });
+                boss.pProjectiles.forEach((pp, i) => {
+                    pp.x += 20; if(weaponImg.complete) ctx.drawImage(weaponImg, pp.x-15, pp.y-15, 30, 30);
+                    if(pp.x > c.width - 150 && Math.abs(pp.y - boss.y) < 50) {
+                        boss.pProjectiles.splice(i, 1); boss.hp -= 25;
+                        if(boss.hp <= 0) { boss.active = false; currentRauMa += 10; updateUI(); }
+                    }
+                });
+            }
+
+            // Sinh vật cản
+            if(!boss.active) {
+                if(frame % 85 === 0) {
+                    if (mode === 'spider' || mode === 'ball') {
+                        let type = Math.random() > 0.5 ? 'top' : 'bot';
+                        obs.push({x: c.width, y: type === 'top' ? ceilY() : floorY(), w: 30, h: 40, t: type});
+                    } else {
+                        obs.push({x: c.width, y: floorY()-35, w: 30, h: 35, t: 'bot'});
+                        if(Math.random() > 0.6) blocks.push({x: c.width+250, y: floorY()-80, w: 40, h: 40});
+                    }
+                } else if(frame % 30 === 0 && (mode==='ship' || mode==='wave' || mode==='ufo' || mode==='swingcopter')) {
+                    let waveY = Math.sin(frame/20)*(c.height/4);
+                    let gap = 160 / difficulty;
+                    obs.push({x: c.width, y: ceilY(), w: 45, h: (c.height/2-gap)+waveY, t: 'top'});
+                    obs.push({x: c.width, y: floorY()-((c.height/2-gap)-waveY), w: 45, h: (c.height/2-gap)-waveY, t: 'bot'});
+                }
             }
 
             obs.forEach((o, i) => {
@@ -204,22 +242,26 @@
                 if(b.x < -100) blocks.splice(i,1);
             });
 
-            // Portals
-            if(frame % 450 === 0) {
+            // Portals & Items
+            if(!boss.active && frame % 450 === 0) {
                 const ms = ['cube','ship','wave','ufo','ball','spider','robot','swingcopter'];
                 portals.push({x: c.width, to: ms[Math.floor(Math.random()*ms.length)]});
             }
             portals.forEach((prt, i) => {
-                prt.x -= curSpd; ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(prt.x, 0, 50, c.height);
+                prt.x -= curSpd; ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(prt.x, 0, 50, c.height);
                 if(p.x+p.w > prt.x && p.x < prt.x+50) { if(mode!==prt.to) { mode = prt.to; obs=[]; blocks=[]; p.grav=1; } }
                 if(prt.x < -100) portals.splice(i,1);
             });
 
-            // Items
             if(frame % 60 === 0) items.push({x: c.width, y: mode==='cube'?floorY()-80:150+Math.random()*(c.height-300)});
             items.forEach((m, i) => {
                 m.x -= curSpd; if(raumaImg.complete) ctx.drawImage(raumaImg, m.x-20, m.y-20, 40, 40);
-                if(Math.hypot(p.x+15-m.x, p.y+15-m.y) < 32) { items.splice(i,1); currentRauMa++; updateUI(); }
+                if(Math.hypot(p.x+15-m.x, p.y+15-m.y) < 32) { 
+                    items.splice(i,1); 
+                    currentRauMa++; 
+                    updateUI();
+                    if(currentRauMa >= 36) playEasterEgg();
+                }
                 if(m.x < -100) items.splice(i, 1);
             });
 
@@ -237,5 +279,4 @@
         window.onresize(); updateUI();
     </script>
 </body>
-
 </html>
